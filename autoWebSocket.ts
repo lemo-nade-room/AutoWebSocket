@@ -19,10 +19,10 @@ export const defaultConfig: Config = {
 };
 
 export interface IAutoWebSocket {
-    onclose: (this: WebSocket, ev: CloseEvent) => any;
-    onerror: (this:WebSocket, ev: Event) => any;
-    onmessage: (this:WebSocket, ev: MessageEvent<any>) => any;
-    onopen: (this:WebSocket, ev: Event) => any;
+    onclose: null | ((this: WebSocket, ev: CloseEvent) => any);
+    onerror: null | ((this:WebSocket, ev: Event) => any);
+    onmessage: null | ((this:WebSocket, ev: MessageEvent<any>) => any);
+    onopen: null | ((this:WebSocket, ev: Event) => any);
     binaryType: BinaryType;
     readonly bufferedAmount: number
     readonly extensions: string
@@ -48,14 +48,15 @@ export default class AutoWebSocket implements IAutoWebSocket {
     private isClosed: boolean = false;
     private isPinged: boolean = false;
 
+    // @ts-ignore
     private ws: WebSocket;
 
     public binaryType: BinaryType = "blob";
 
-    private _onclose: (this: WebSocket, ev: CloseEvent) => any = () => {};
-    private _onerror: (this:WebSocket, ev: Event) => any = () => {};
-    private _onmessage: (this:WebSocket, ev: MessageEvent<any>) => any = () => {};
-    private _onopen: (this:WebSocket, ev: Event) => any = () => {};
+    private _onclose: ((this: WebSocket, ev: CloseEvent) => any) | null = null;
+    private _onerror: ((this:WebSocket, ev: Event) => any) | null = null;
+    private _onmessage: ((this:WebSocket, ev: MessageEvent<any>) => any) | null = null;
+    private _onopen: ((this:WebSocket, ev: Event) => any) | null = null;
 
     public constructor(uri: string, config: Config) {
         this.URI = uri;
@@ -92,36 +93,35 @@ export default class AutoWebSocket implements IAutoWebSocket {
         this.ws.send(data);
     }
 
-    public get onclose(): (this: WebSocket, ev: CloseEvent) => any {
+    public get onclose(): ((this: WebSocket, ev: CloseEvent) => any) | null {
         return this.ws.onclose
     }
 
-    public set onclose(newValue: ((this: WebSocket, ev: CloseEvent) => any)) {
+    public set onclose(newValue: ((this: WebSocket, ev: CloseEvent) => any) | null) {
         this.ws.onclose = newValue;
         this._onclose = newValue;
     }
 
-    public get onerror(): ((this:WebSocket, ev: Event) => any) {
+    public get onerror(): ((this:WebSocket, ev: Event) => any) | null {
         return this.ws.onerror;
     }
 
-    public set onerror(newValue: ((this:WebSocket, ev: Event) => any)) {
+    public set onerror(newValue: ((this:WebSocket, ev: Event) => any) | null) {
         this.ws.onerror = newValue;
         this._onerror = newValue;
     }
 
-    public get onmessage(): ((this:WebSocket, ev: MessageEvent<any>) => any) {
+    public get onmessage(): ((this:WebSocket, ev: MessageEvent<any>) => any) | null {
         return this.ws.onmessage;
     }
 
-    public set onmessage(newValue: ((this:WebSocket, ev: MessageEvent<any>) => any)) {
+    public set onmessage(newValue: ((this:WebSocket, ev: MessageEvent<any>) => any) | null) {
         this._onmessage = newValue;
     }
 
     public set onopen(newValue: ((this:WebSocket, ev: Event) => any)) {
         this.ws.onopen = newValue;
         this._onopen = newValue;
-        this.ws.addEventListener('error', () => {}, {})
     }
 
     public readonly addEventListener = (
@@ -159,6 +159,7 @@ export default class AutoWebSocket implements IAutoWebSocket {
             if (ev.data === 'pong' && self.isPinged) {
                 self.isPinged = false;
             } else {
+                if (self._onmessage == null) return;
                 self._onmessage.call(this, ev);
             }
         }
@@ -166,13 +167,14 @@ export default class AutoWebSocket implements IAutoWebSocket {
     };
 
     private readonly trySocketConnect = (): WebSocket => {
-        for (let i = 0; i < this.config.tryTimes; i++) {
+        for (let i = 0; i < this.config.tryTimes!; i++) {
             try {
                 return new WebSocket(this.URI, this.config.protocols);
             } catch (e) {
                 if (i + 1 === this.config.tryTimes) throw e;
             }
         }
+        throw Error('Library Error')
     }
 
     private readonly continuation = () => {
